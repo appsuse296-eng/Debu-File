@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Debu File — Downloads</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <div>
+        <div class="brand">DEBU FILE</div>
+        <h1>File Download Center</h1>
+        <p>Choose a file and download it. Uploading is available only to the administrator.</p>
+      </div>
+      <a class="button secondary" href="/admin">Admin Login</a>
+    </header>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Available Files</h2>
+        <button class="button secondary" onclick="loadFiles()">Refresh</button>
+      </div>
+      <div id="status" class="muted">Loading…</div>
+      <div id="files" class="file-list"></div>
+    </section>
+  </main>
+<script>
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B","KB","MB","GB","TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+async function loadFiles() {
+  const status = document.getElementById("status");
+  const box = document.getElementById("files");
+  status.textContent = "Loading…";
+  try {
+    const res = await fetch("/api/files");
+    const files = await res.json();
+    box.innerHTML = files.length ? files.map(f => `
+      <div class="file-row">
+        <div>
+          <strong>${escapeHtml(f.name)}</strong>
+          <div class="muted">${formatBytes(f.size)} · ${new Date(f.uploadedAt).toLocaleString()}</div>
+        </div>
+        <a class="button" href="/download/${encodeURIComponent(f.id)}">Download</a>
+      </div>`).join("") : '<div class="empty">No files uploaded yet.</div>';
+    status.textContent = `${files.length} file${files.length === 1 ? "" : "s"}`;
+  } catch {
+    status.textContent = "Could not load files.";
+  }
+}
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+loadFiles();
+</script>
+</body>
+</html>

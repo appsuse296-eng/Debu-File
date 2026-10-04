@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Debu File — Admin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="container">
+  <header class="hero">
+    <div>
+      <div class="brand">DEBU FILE</div>
+      <h1>Admin Panel</h1>
+      <p>Upload and manage files. This page is protected by admin authentication.</p>
+    </div>
+    <a class="button secondary" href="/">Public Downloads</a>
+  </header>
+
+  <section id="loginCard" class="card narrow">
+    <h2>Admin Login</h2>
+    <form id="loginForm">
+      <label>Username<input name="username" autocomplete="username" required></label>
+      <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="button" type="submit">Login</button>
+      <div id="loginStatus" class="error"></div>
+    </form>
+  </section>
+
+  <section id="panel" class="hidden">
+    <section class="card">
+      <div class="section-head"><h2>Upload Files</h2><button class="button secondary" onclick="logout()">Logout</button></div>
+      <form id="uploadForm">
+        <input id="fileInput" type="file" name="files" multiple required>
+        <button class="button" type="submit">Upload Selected Files</button>
+        <div id="uploadStatus" class="muted"></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="section-head"><h2>Manage Files</h2><button class="button secondary" onclick="loadAdminFiles()">Refresh</button></div>
+      <div id="adminFiles"></div>
+    </section>
+  </section>
+</main>
+<script>
+const loginCard = document.getElementById("loginCard");
+const panel = document.getElementById("panel");
+
+async function checkAuth() {
+  const r = await fetch("/api/admin/me");
+  if (r.ok) { loginCard.classList.add("hidden"); panel.classList.remove("hidden"); loadAdminFiles(); }
+}
+document.getElementById("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  const r = await fetch("/api/admin/login", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const data = await r.json();
+  if (!r.ok) return document.getElementById("loginStatus").textContent = data.error || "Login failed";
+  e.target.reset(); document.getElementById("loginStatus").textContent = "";
+  loginCard.classList.add("hidden"); panel.classList.remove("hidden"); loadAdminFiles();
+});
+document.getElementById("uploadForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const status = document.getElementById("uploadStatus");
+  const fd = new FormData(e.target);
+  status.textContent = "Uploading…";
+  const r = await fetch("/api/admin/upload", {method:"POST", body:fd});
+  const data = await r.json();
+  status.textContent = r.ok ? `Uploaded ${data.files.length} file(s).` : (data.error || "Upload failed");
+  if (r.ok) { e.target.reset(); loadAdminFiles(); }
+});
+async function loadAdminFiles() {
+  const r = await fetch("/api/files");
+  if (r.status === 401) { location.reload(); return; }
+  const files = await r.json();
+  document.getElementById("adminFiles").innerHTML = files.length ? files.map(f => `
+    <div class="file-row">
+      <div><strong>${escapeHtml(f.name)}</strong><div class="muted">${formatBytes(f.size)}</div></div>
+      <div class="actions"><a class="button secondary" href="/download/${encodeURIComponent(f.id)}">Download</a>
+      <button class="button danger" onclick="deleteFile('${encodeURIComponent(f.id)}')">Delete</button></div>
+    </div>`).join("") : '<div class="empty">No files.</div>';
+}
+async function deleteFile(id) {
+  if (!confirm("Delete this file?")) return;
+  const r = await fetch("/api/admin/files/" + id, {method:"DELETE"});
+  if (r.ok) loadAdminFiles(); else alert("Delete failed");
+}
+async function logout() {
+  await fetch("/api/admin/logout", {method:"POST"});
+  location.reload();
+}
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units=["B","KB","MB","GB","TB"], i=Math.floor(Math.log(bytes)/Math.log(1024));
+  return `${(bytes/Math.pow(1024,i)).toFixed(i?1:0)} ${units[i]}`;
+}
+function escapeHtml(s) { return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+checkAuth();
+</script>
+</body>
+</html>
